@@ -53,6 +53,9 @@ jobs:
           cd backend
           npm run build
 
+      - name: Create storage directory
+        run: mkdir -p backend/storage
+
       - name: Generate config from secrets
         run: |
           cat > backend/storage/config.json << EOF
