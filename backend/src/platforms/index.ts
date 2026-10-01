@@ -1,0 +1,93 @@
+import { checkBlinkit, checkBlinkitAPI } from './blinkit';
+import { checkZepto, checkZeptoAPI } from './zepto';
+import { checkFirstCry, checkFirstCryAPI } from './firstcry';
+import { checkAmazon, checkAmazonAPI } from './amazon';
+import { StockResult } from './base';
+import { ProductConfig } from '../config';
+
+export type PlatformName = 'blinkit' | 'zepto' | 'firstcry' | 'amazon';
+
+export interface PlatformModule {
+  check: (product: ProductConfig) => Promise<StockResult>;
+  checkAPI?: (product: ProductConfig) => Promise<StockResult>;
+}
+
+export const platforms: Record<PlatformName, PlatformModule> = {
+  blinkit: { check: checkBlinkit, checkAPI: checkBlinkitAPI },
+  zepto: { check: checkZepto, checkAPI: checkZeptoAPI },
+  firstcry: { check: checkFirstCry, checkAPI: checkFirstCryAPI },
+  amazon: { check: checkAmazon, checkAPI: checkAmazonAPI },
+};
+
+export async function checkPlatform(platform: PlatformName, product: ProductConfig): Promise<StockResult> {
+  const platformModule = platforms[platform];
+  if (!platformModule) {
+    return {
+      platform,
+      productId: product.id,
+      productName: product.name,
+      available: false,
+      checkedAt: new Date().toISOString(),
+      stockLevel: 'unknown',
+      error: `Unknown platform: ${platform}`,
+    };
+  }
+
+  // Try API first, fallback to HTML scraping
+  if (platformModule.checkAPI) {
+    try {
+      const apiResult = await platformModule.checkAPI(product);
+      if (apiResult.stockLevel !== 'unknown' && !apiResult.error) {
+        return apiResult;
+      }
+    } catch (error) {
+      console.warn(`${platform} API check failed, falling back to HTML:`, error);
+    }
+  }
+
+  // Fallback to HTML scraping
+  return platformModule.check(product);
+}
+
+export async function checkAllPlatforms(product: ProductConfig): Promise<StockResult[]> {
+  const platformNames: PlatformName[] = ['blinkit', 'zepto', 'firstcry', 'amazon'];
+  const results: StockResult[] = [];
+
+  for (const platform of platformNames) {
+    // Only check platforms that have URLs configured
+    if (product.urls[platform]) {
+      console.log(`Checking ${platform} for ${product.name}...`);
+      try {
+        const result = await checkPlatform(platform, product);
+        results.push(result);
+        
+        // Small delay between requests to be polite
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`Error checking ${platform}:`, error);
+        results.push({
+          platform,
+          productId: product.id,
+          productName: product.name,
+          available: false,
+          checkedAt: new Date().toISOString(),
+          stockLevel: 'unknown',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    } else {
+      console.log(`Skipping ${platform} - no URL configured`);
+      results.push({
+        platform,
+        productId: product.id,
+        productName: product.name,
+        available: false,
+        checkedAt: new Date().toISOString(),
+        stockLevel: 'unknown',
+        error: 'No URL configured for this platform',
+      });
+    }
+  }
+
+  return results;
+}

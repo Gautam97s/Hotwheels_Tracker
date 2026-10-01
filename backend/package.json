@@ -1,0 +1,25 @@
+{
+  "name": "hotwheels-stock-checker",
+  "version": "1.0.0",
+  "description": "Backend stock checker for Hot Wheels across Indian platforms",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "check": "ts-node src/index.ts",
+    "check:blinkit": "ts-node -e \"import { checkBlinkit } from './src/platforms/blinkit'; import { config } from './src/config'; checkBlinkit(config.products[0]).then(console.log)\"",
+    "check:zepto": "ts-node -e \"import { checkZepto } from './src/platforms/zepto'; import { config } from './src/config'; checkZepto(config.products[0]).then(console.log)\"",
+    "check:firstcry": "ts-node -e \"import { checkFirstCry } from './src/platforms/firstcry'; import { config } from './src/config'; checkFirstCry(config.products[0]).then(console.log)\"",
+    "check:amazon": "ts-node -e \"import { checkAmazon } from './src/platforms/amazon'; import { config } from './src/config'; checkAmazon(config.products[0]).then(console.log)\""
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/axios": "^0.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

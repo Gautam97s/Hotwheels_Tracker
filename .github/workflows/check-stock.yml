@@ -1,0 +1,115 @@
+name: Check Hot Wheels Stock
+
+on:
+  schedule:
+    # Run every 10 minutes (adjust as needed)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    paths:
+      - 'backend/src/config.ts'
+      - 'backend/storage/config.json'
+
+jobs:
+  check-stock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    env:
+      # Telegram credentials (set in GitHub Secrets)
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      
+      # Product config (can also be in secrets for privacy)
+      DEFAULT_PINCODE: ${{ secrets.DEFAULT_PINCODE }}
+      PRODUCT_NAME: ${{ secrets.PRODUCT_NAME }}
+      BLINKIT_URL: ${{ secrets.BLINKIT_URL }}
+      ZEPTO_URL: ${{ secrets.ZEPTO_URL }}
+      FIRSTCRY_URL: ${{ secrets.FIRSTCRY_URL }}
+      AMAZON_URL: ${{ secrets.AMAZON_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Need to push status updates back
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Build TypeScript
+        run: |
+          cd backend
+          npm run build
+
+      - name: Generate config from secrets
+        run: |
+          cat > backend/storage/config.json << EOF
+          {
+            "products": [
+              {
+                "id": "hw-fast-furious-orange",
+                "name": "${{ env.PRODUCT_NAME || 'Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)' }}",
+                "pincode": "${{ env.DEFAULT_PINCODE || '110001' }}",
+                "urls": {
+                  "blinkit": "${{ env.BLINKIT_URL }}",
+                  "zepto": "${{ env.ZEPTO_URL }}",
+                  "firstcry": "${{ env.FIRSTCRY_URL || 'https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail' }}",
+                  "amazon": "${{ env.AMAZON_URL }}"
+                },
+                "checkIntervalMinutes": 10,
+                "notifyOnRestock": true
+              }
+            ],
+            "telegram": {
+              "botToken": "${{ env.TELEGRAM_BOT_TOKEN }}",
+              "chatId": "${{ env.TELEGRAM_CHAT_ID }}",
+              "enabled": "${{ env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID && 'true' || 'false' }}"
+            },
+            "defaultPincode": "${{ env.DEFAULT_PINCODE || '110001' }}",
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "requestTimeout": 15000,
+            "maxRetries": 2
+          }
+          EOF
+
+      - name: Run stock check
+        id: stock-check
+        run: |
+          cd backend
+          npm run check
+        continue-on-error: true
+
+      - name: Commit status updates
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add status file if changed
+          if [ -f backend/storage/status.json ]; then
+            git add backend/storage/status.json
+            if ! git diff --staged --quiet; then
+              git commit -m "chore: update stock status [skip ci]"
+              git push
+            else
+              echo "No status changes to commit"
+            fi
+          fi
+
+      - name: Notify on restock
+        if: failure() && steps.stock-check.outcome == 'failure'
+        run: |
+          echo "🎉 Restock detected! Check Telegram for details."
+          # The script exits with code 1 on restock, triggering this
