@@ -13,6 +13,7 @@ export interface ProductConfig {
   };
   checkIntervalMinutes: number;
   notifyOnRestock: boolean;
+  targetPrice?: number;  // Alert only when price <= this value
 }
 
 export interface TelegramConfig {
@@ -45,6 +46,7 @@ const DEFAULT_CONFIG: Config = {
       },
       checkIntervalMinutes: 10,
       notifyOnRestock: true,
+      targetPrice: 199,  // Alert only when price <= ₹199
     },
   ],
   telegram: {

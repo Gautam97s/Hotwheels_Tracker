@@ -129,6 +129,34 @@ export function formatStatusChangeAlert(
   return message;
 }
 
+export function formatPriceThresholdAlert(
+  results: StockResult[], 
+  productName: string, 
+  targetPrice: number
+): string {
+  let message = `🎯 <b>PRICE THRESHOLD ALERT!</b>\n\n`;
+  message += `<b>${productName}</b> is available at or below your target price!\n\n`;
+  message += `🎯 <b>Target: ≤₹${targetPrice.toLocaleString('en-IN')}</b>\n\n`;
+
+  for (const result of results) {
+    const platformEmoji = getPlatformEmoji(result.platform);
+    message += `${platformEmoji} <b>${capitalize(result.platform)}</b>`;
+    if (result.price !== undefined) {
+      const savings = targetPrice - result.price;
+      message += ` - ₹${result.price.toLocaleString('en-IN')}`;
+      if (savings > 0) {
+        message += ` <i>(₹${savings.toLocaleString('en-IN')} below target!)</i>`;
+      }
+    }
+    message += `\n`;
+  }
+
+  message += `\n🕐 ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
+  message += `\n📍 Pincode: ${config.products[0]?.pincode || 'Not set'}`;
+
+  return message;
+}
+
 export function formatPeriodicSummary(results: StockResult[], productName: string): string {
   const inStock = results.filter(r => r.available);
   

@@ -1,6 +1,6 @@
 import { config } from './config';
 import { checkAllPlatforms } from './platforms';
-import { sendTelegramMessage, formatStockAlert, formatStatusChangeAlert, formatPeriodicSummary } from './notifiers/telegram';
+import { sendTelegramMessage, formatStockAlert, formatStatusChangeAlert, formatPeriodicSummary, formatPriceThresholdAlert } from './notifiers/telegram';
 import { loadStatus, saveStatus, updateStatus, getPreviousResults } from './storage/status';
 import { StockResult } from './platforms/base';
 
@@ -12,11 +12,15 @@ async function main() {
   const statusStore = loadStatus();
   let anyInStock = false;
   let anyRestocked = false;
+  let anyPriceThresholdMet = false;
   const allResults: { product: typeof config.products[0]; results: StockResult[] }[] = [];
 
   for (const product of config.products) {
     console.log(`\n🔍 Checking: ${product.name}`);
     console.log(`   Pincode: ${product.pincode}`);
+    if (product.targetPrice) {
+      console.log(`   🎯 Target price: ≤₹${product.targetPrice}`);
+    }
     
     const configuredPlatforms = Object.entries(product.urls)
       .filter(([_, url]) => url)
@@ -46,6 +50,28 @@ async function main() {
           parse_mode: 'HTML',
         });
         console.log('   📱 Telegram alert sent');
+      }
+    }
+
+    // Check for price threshold alerts (in_stock AND price <= targetPrice)
+    if (product.targetPrice) {
+      const priceThresholdResults = results.filter(r => 
+        r.available && r.price !== undefined && r.price <= product.targetPrice!
+      );
+      
+      if (priceThresholdResults.length > 0) {
+        anyPriceThresholdMet = true;
+        console.log(`   🎯 PRICE THRESHOLD MET on ${priceThresholdResults.length} platform(s)!`);
+        
+        const priceAlert = formatPriceThresholdAlert(priceThresholdResults, product.name, product.targetPrice);
+        if (config.telegram.enabled) {
+          await sendTelegramMessage({
+            chat_id: config.telegram.chatId,
+            text: priceAlert,
+            parse_mode: 'HTML',
+          });
+          console.log('   📱 Price threshold alert sent');
+        }
       }
     }
 
@@ -86,9 +112,9 @@ async function main() {
 
   console.log('\n✅ Stock check complete!');
   
-  // Exit with code 1 if restocked (useful for CI/CD notifications)
-  if (anyRestocked) {
-    console.log('🎉 RESTOCK DETECTED - Exiting with code 1 for notification');
+  // Exit with code 1 if restocked or price threshold met (useful for CI/CD notifications)
+  if (anyRestocked || anyPriceThresholdMet) {
+    console.log('🎉 ALERT TRIGGERED - Exiting with code 1 for notification');
     process.exit(1);
   }
   

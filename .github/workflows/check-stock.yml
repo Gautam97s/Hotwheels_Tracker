@@ -23,6 +23,7 @@ jobs:
       # Product config (can also be in secrets for privacy)
       DEFAULT_PINCODE: ${{ secrets.DEFAULT_PINCODE }}
       PRODUCT_NAME: ${{ secrets.PRODUCT_NAME }}
+      TARGET_PRICE: ${{ secrets.TARGET_PRICE }}
       BLINKIT_URL: ${{ secrets.BLINKIT_URL }}
       ZEPTO_URL: ${{ secrets.ZEPTO_URL }}
       FIRSTCRY_URL: ${{ secrets.FIRSTCRY_URL }}
@@ -72,7 +73,8 @@ jobs:
                   "amazon": "${{ env.AMAZON_URL }}"
                 },
                 "checkIntervalMinutes": 10,
-                "notifyOnRestock": true
+                "notifyOnRestock": true,
+                "targetPrice": ${{ env.TARGET_PRICE || 199 }}
               }
             ],
             "telegram": {
