@@ -24,7 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Need to push status updates back
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
@@ -54,7 +53,6 @@ jobs:
           echo "Fetching config from Upstash Redis..."
           
           # Fetch config from Upstash Redis REST API
-          # Upstash returns: {"result": "value"} or {"result": null}
           RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.KV_REST_API_TOKEN }}" \
             "${{ secrets.KV_REST_API_URL }}/get/hotwheels:tracker:config")
           
@@ -63,98 +61,117 @@ jobs:
           # Check if response is empty or null
           if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
             echo "No config found in Upstash, using fallback..."
-            # Fallback to minimal config
-            cat > backend/storage/config.json << 'EOF'
-            {
-              "products": [
-                {
-                  "id": "hw-fast-furious-orange",
-                  "name": "Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)",
-                  "pincode": "110001",
-                  "urls": {
-                    "firstcry": "https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail"
-                  },
-                  "checkIntervalMinutes": 10,
-                  "notifyOnRestock": true,
-                  "targetPrice": 199
-                }
-              ],
-              "telegram": {
-                "botToken": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
-                "chatId": "${{ secrets.TELEGRAM_CHAT_ID }}",
-                "enabled": "${{ secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID && 'true' || 'false' }}"
-              },
-              "defaultPincode": "110001",
-              "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "requestTimeout": 15000,
-              "maxRetries": 2
-            }
-            EOF
+            python3 -c "
+import json, os
+
+bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+config = {
+    'products': [{
+        'id': 'hw-fast-furious-orange',
+        'name': 'Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)',
+        'pincode': '110001',
+        'urls': {
+            'firstcry': 'https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail'
+        },
+        'checkIntervalMinutes': 10,
+        'notifyOnRestock': True,
+        'targetPrice': 199
+    }],
+    'telegram': {
+        'botToken': bot_token,
+        'chatId': chat_id,
+        'enabled': bool(bot_token and chat_id)
+    },
+    'defaultPincode': '110001',
+    'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'requestTimeout': 15000,
+    'maxRetries': 2
+}
+
+with open('backend/storage/config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+print('Fallback config written')
+"
           else
             # Extract the result value from Upstash response
-            # Upstash format: {"result": "value"} or {"result": null}
             CONFIG_VALUE=$(echo "$RESPONSE" | jq -r '.result // empty')
             
             if [ -z "$CONFIG_VALUE" ] || [ "$CONFIG_VALUE" = "null" ]; then
               echo "Config key not found in Upstash, using fallback..."
-              cat > backend/storage/config.json << 'EOF'
-              {
-                "products": [
-                  {
-                    "id": "hw-fast-furious-orange",
-                    "name": "Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)",
-                    "pincode": "110001",
-                    "urls": {
-                      "firstcry": "https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail"
-                    },
-                    "checkIntervalMinutes": 10,
-                    "notifyOnRestock": true,
-                    "targetPrice": 199
-                  }
-                ],
-                "telegram": {
-                  "botToken": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
-                  "chatId": "${{ secrets.TELEGRAM_CHAT_ID }}",
-                  "enabled": "${{ secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID && 'true' || 'false' }}"
-                },
-                "defaultPincode": "110001",
-                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "requestTimeout": 15000,
-                "maxRetries": 2
-              }
-              EOF
+              python3 -c "
+import json, os
+
+bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+config = {
+    'products': [{
+        'id': 'hw-fast-furious-orange',
+        'name': 'Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)',
+        'pincode': '110001',
+        'urls': {
+            'firstcry': 'https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail'
+        },
+        'checkIntervalMinutes': 10,
+        'notifyOnRestock': True,
+        'targetPrice': 199
+    }],
+    'telegram': {
+        'botToken': bot_token,
+        'chatId': chat_id,
+        'enabled': bool(bot_token and chat_id)
+    },
+    'defaultPincode': '110001',
+    'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'requestTimeout': 15000,
+    'maxRetries': 2
+}
+
+with open('backend/storage/config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+print('Fallback config written')
+"
             else
               echo "$CONFIG_VALUE" > backend/storage/config.json
               
               # Verify it's valid JSON
               if ! jq empty backend/storage/config.json 2>/dev/null; then
                 echo "Invalid JSON from Upstash, using fallback..."
-                cat > backend/storage/config.json << 'EOF'
-                {
-                  "products": [
-                    {
-                      "id": "hw-fast-furious-orange",
-                      "name": "Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)",
-                      "pincode": "110001",
-                      "urls": {
-                        "firstcry": "https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail"
-                      },
-                      "checkIntervalMinutes": 10,
-                      "notifyOnRestock": true,
-                      "targetPrice": 199
-                    }
-                  ],
-                  "telegram": {
-                    "botToken": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
-                    "chatId": "${{ secrets.TELEGRAM_CHAT_ID }}",
-                    "enabled": "${{ secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID && 'true' || 'false' }}"
-                  },
-                  "defaultPincode": "110001",
-                  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                  "requestTimeout": 15000,
-                  "maxRetries": 2
-                }
-                EOF
+                python3 -c "
+import json, os
+
+bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+config = {
+    'products': [{
+        'id': 'hw-fast-furious-orange',
+        'name': 'Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)',
+        'pincode': '110001',
+        'urls': {
+            'firstcry': 'https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail'
+        },
+        'checkIntervalMinutes': 10,
+        'notifyOnRestock': True,
+        'targetPrice': 199
+    }],
+    'telegram': {
+        'botToken': os.environ.get('TELEGRAM_BOT_TOKEN', ''),
+        'chatId': os.environ.get('TELEGRAM_CHAT_ID', ''),
+        'enabled': bool(os.environ.get('TELEGRAM_BOT_TOKEN') and os.environ.get('TELEGRAM_CHAT_ID'))
+    },
+    'defaultPincode': '110001',
+    'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'requestTimeout': 15000,
+    'maxRetries': 2
+}
+
+with open('backend/storage/config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+print('Fallback config written')
+"
               fi
               
               echo "Config fetched from Upstash Redis successfully"
@@ -175,7 +192,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Add status file if changed
           if [ -f backend/storage/status.json ]; then
             git add backend/storage/status.json
             if ! git diff --staged --quiet; then
