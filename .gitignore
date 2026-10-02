@@ -6,6 +6,10 @@ node_modules
 # testing
 coverage
 
+.next/*
+.next/
+
+
 # next.js (frontend)
 frontend/.next/
 frontend/out/
