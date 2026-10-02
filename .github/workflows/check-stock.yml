@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 10
     
     env:
-      # Vercel KV credentials (set in GitHub Secrets)
+      # Upstash Redis credentials (set in GitHub Secrets)
       KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
       KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
       
@@ -48,17 +48,21 @@ jobs:
       - name: Create storage directory
         run: mkdir -p backend/storage
 
-      - name: Fetch config from Vercel KV
+      - name: Fetch config from Upstash Redis
         id: fetch-config
         run: |
-          echo "Fetching config from Vercel KV..."
+          echo "Fetching config from Upstash Redis..."
           
-          # Fetch config from Vercel KV REST API
+          # Fetch config from Upstash Redis REST API
+          # Upstash returns: {"result": "value"} or {"result": null}
           RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.KV_REST_API_TOKEN }}" \
             "${{ secrets.KV_REST_API_URL }}/get/hotwheels:tracker:config")
           
+          echo "Raw response: $RESPONSE"
+          
+          # Check if response is empty or null
           if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
-            echo "No config found in KV, using fallback..."
+            echo "No config found in Upstash, using fallback..."
             # Fallback to minimal config
             cat > backend/storage/config.json << 'EOF'
             {
@@ -87,12 +91,12 @@ jobs:
             }
             EOF
           else
-            # Extract the result value from Vercel KV response
-            echo "$RESPONSE" | jq -r '.result // .value // .' > backend/storage/config.json
+            # Extract the result value from Upstash response
+            # Upstash format: {"result": "value"} or {"result": null}
+            CONFIG_VALUE=$(echo "$RESPONSE" | jq -r '.result // empty')
             
-            # Verify it's valid JSON
-            if ! jq empty backend/storage/config.json 2>/dev/null; then
-              echo "Invalid JSON from KV, using fallback..."
+            if [ -z "$CONFIG_VALUE" ] || [ "$CONFIG_VALUE" = "null" ]; then
+              echo "Config key not found in Upstash, using fallback..."
               cat > backend/storage/config.json << 'EOF'
               {
                 "products": [
@@ -119,10 +123,43 @@ jobs:
                 "maxRetries": 2
               }
               EOF
+            else
+              echo "$CONFIG_VALUE" > backend/storage/config.json
+              
+              # Verify it's valid JSON
+              if ! jq empty backend/storage/config.json 2>/dev/null; then
+                echo "Invalid JSON from Upstash, using fallback..."
+                cat > backend/storage/config.json << 'EOF'
+                {
+                  "products": [
+                    {
+                      "id": "hw-fast-furious-orange",
+                      "name": "Hot Wheels Premium Fast & Furious Die-Cast Toy Car (Orange)",
+                      "pincode": "110001",
+                      "urls": {
+                        "firstcry": "https://www.firstcry.com/hot-wheels/hot-wheels-premium-fast-and-furious-die-cast-toy-car-for-adult-collectors-orange/21161951/product-detail"
+                      },
+                      "checkIntervalMinutes": 10,
+                      "notifyOnRestock": true,
+                      "targetPrice": 199
+                    }
+                  ],
+                  "telegram": {
+                    "botToken": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
+                    "chatId": "${{ secrets.TELEGRAM_CHAT_ID }}",
+                    "enabled": "${{ secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID && 'true' || 'false' }}"
+                  },
+                  "defaultPincode": "110001",
+                  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                  "requestTimeout": 15000,
+                  "maxRetries": 2
+                }
+                EOF
+              fi
+              
+              echo "Config fetched from Upstash Redis successfully"
+              cat backend/storage/config.json
             fi
-            
-            echo "Config fetched from Vercel KV successfully"
-            cat backend/storage/config.json
           fi
 
       - name: Run stock check
