@@ -79,7 +79,7 @@ async function test() {
     // Show results
     for (const result of results) {
       const emoji = result.available ? '✅' : result.stockLevel === 'out_of_stock' ? '❌' : '⚠️';
-      console.log(`   ${emoji} ${result.platform.toUpperCase()}: ${result.stockLevel.toUpperCase()}`);
+      console.log(`   ${emoji} ${result.platform.toUpperCase()}: ${(result.stockLevel || 'unknown').toUpperCase()}`);
       if (result.price) console.log(`      Price: ₹${result.price}`);
       if (result.error) console.log(`      Error: ${result.error}`);
     }

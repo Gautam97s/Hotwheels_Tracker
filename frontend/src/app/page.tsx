@@ -361,15 +361,7 @@ export default function HomePage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <SettingsPanel
-                globalInterval={globalInterval}
-                onGlobalIntervalChange={updateGlobalInterval}
-                notificationsEnabled={products.some(p => p.notificationsEnabled)}
-                soundEnabled={products.some(p => p.soundEnabled)}
-                onNotificationsToggle={handleNotificationsToggle}
-                onSoundToggle={handleSoundToggle}
-                onClearAll={handleClearAll}
-              />
+              <SettingsPanel />
             </div>
           </div>
         </div>

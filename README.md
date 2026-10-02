@@ -1,138 +1,164 @@
 # Hot Wheels Restock Tracker
 
-A production-quality **frontend-only** Hot Wheels availability tracker for Indian e-commerce platforms.
+A production-quality **frontend + backend** Hot Wheels availability tracker for Indian e-commerce platforms.
+
+## Project Structure
+
+```
+hotwheels-tracker/
+├── frontend/                 # Next.js 14 Frontend (Vercel)
+│   ├── src/
+│   │   ├── app/              # App Router pages + API routes
+│   │   ├── components/       # React components
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── lib/              # Utilities, storage, notifications
+│   │   └── types/            # TypeScript types
+│   ├── public/               # Static assets
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── next.config.js
+│   └── tailwind.config.ts
+│
+├── backend/                  # Node.js/TypeScript Backend (GitHub Actions)
+│   ├── src/
+│   │   ├── platforms/        # Platform-specific checkers
+│   │   ├── notifiers/        # Telegram notifications
+│   │   ├── storage/          # JSON status persistence
+│   │   ├── config.ts         # Configuration
+│   │   └── index.ts          # Main entry point
+│   ├── storage/              # Runtime config/status (gitignored)
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── .github/
+│   └── workflows/
+│       └── check-stock.yml   # GitHub Actions workflow
+│
+└── package.json              # Root workspace config
+```
 
 ## Features
 
-- **Track specific Hot Wheels cars** across Blinkit, Zepto, FirstCry, and Amazon India
-- **Add products via URL** or manual entry
-- **Real-time availability checking** with configurable intervals (30s, 1m, 5m, 10m)
-- **Browser notifications** when cars are restocked
-- **Optional sound alerts** for restock notifications
-- **Dark/Light mode** support
-- **LocalStorage persistence** - all data stays in your browser
-- **Mobile responsive** design
-- **Deployable on Vercel** with zero backend
+### Frontend (Next.js + Vercel)
+- **Dashboard** - Track multiple Hot Wheels cars
+- **Add Products** - Manual entry with platform URLs
+- **Price Threshold Alerts** - Notify only when price ≤ target
+- **Telegram Integration** - Bot token & chat ID management
+- **Real-time Config** - Stored in Vercel KV, synced with backend
+- **Dark/Light Mode** - System-aware theming
+- **Responsive Design** - Mobile-first Tailwind CSS
 
-## Supported Platforms
+### Backend (GitHub Actions)
+- **Multi-platform Checking** - Blinkit, Zepto, FirstCry, Amazon
+- **Pincode-based Stock** - Location-aware availability
+- **Scheduled Runs** - Every 10 minutes (configurable)
+- **Telegram Notifications** - Restock & price threshold alerts
+- **Status Persistence** - JSON committed to repo
+- **Vercel KV Config** - Fetches config at runtime
 
-- 🛒 **Blinkit** - blinkit.com
-- ⚡ **Zepto** - zepto.com
-- 👶 **FirstCry** - firstcry.com
-- 📦 **Amazon India** - amazon.in
+## Quick Start
 
-## Important Limitations
-
-> **This is a frontend-only MVP.** Due to anti-bot protection, CORS restrictions, and dynamic rendering on these marketplaces, **automatic stock checking from the browser is not possible**. The tracker will:
-> - Show "Unable to Check" status for all products
-> - Provide direct "Open Product" links to manually verify availability
-> - Remind you to check at your configured interval
-> - Only work while the browser tab is open
-
-## Getting Started
-
-### Prerequisites
-
+### 1. Prerequisites
 - Node.js 18+
-- npm or yarn
+- Vercel account (for KV & hosting)
+- GitHub account (for Actions)
+- Telegram Bot (for notifications)
 
-### Installation
-
+### 2. Install Dependencies
 ```bash
-# Clone the repository
-cd hotwheels-tracker
-
-# Install dependencies
+# Root (optional - for workspace commands)
 npm install
 
-# Start development server
-npm run dev
+# Frontend
+cd frontend && npm install
+
+# Backend
+cd backend && npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+### 3. Configure Vercel KV
+1. Vercel Dashboard → Project → **Storage** → **Create Database** → **KV**
+2. Name: `hotwheels-config`
+3. Copy `KV_REST_API_URL` and `KV_REST_API_TOKEN`
 
-### Building for Production
+### 4. Configure GitHub Secrets
+Go to GitHub → Settings → Secrets → Actions:
+
+| Secret | Description |
+|--------|-------------|
+| `KV_REST_API_URL` | Vercel KV REST API URL |
+| `KV_REST_API_TOKEN` | Vercel KV REST API Token |
+| `TELEGRAM_BOT_TOKEN` | From @BotFather |
+| `TELEGRAM_CHAT_ID` | Your chat ID |
+
+### 5. Create Telegram Bot
+1. Message @BotFather → `/newbot`
+2. Copy token
+3. Message your bot → visit `https://api.telegram.org/bot<TOKEN>/getUpdates`
+4. Copy `chat.id` number
+
+### 6. Deploy Frontend to Vercel
+1. Push to GitHub
+2. Import in Vercel
+3. Add KV integration
+4. Deploy
+
+### 7. Test Backend
+```bash
+cd backend
+cp .env.example .env
+# Edit .env with your values
+npm run check
+```
+
+### 8. Trigger GitHub Actions
+- Actions tab → "Check Hot Wheels Stock" → "Run workflow"
+
+## Development
 
 ```bash
+# Frontend dev server
+cd frontend && npm run dev
+
+# Backend test run
+cd backend && npm run check
+
+# Build both
 npm run build
-npm start
 ```
 
-## Deployment on Vercel
+## Configuration
 
-1. Push this repository to GitHub
-2. Import the project in Vercel
-3. Deploy - no additional configuration needed
+All configuration managed via **Frontend Dashboard** (Settings tab):
+- Products (name, pincode, platform URLs, target price, check interval)
+- Global check interval
+- Telegram bot token & chat ID
+- Export/Import JSON backup
 
-The app will work as a static/client-heavy Next.js application with no custom server required.
+Config stored in **Vercel KV** → automatically synced to GitHub Actions backend.
 
-## Usage
+## Platform Support
 
-1. **Add a Car**: Click "Add Car" and paste a product URL from any supported platform
-2. **Enter Details**: Since auto-extraction is blocked, you'll manually enter:
-   - Car name (e.g., "Porsche 911 GT3 RS")
-   - Image URL (optional)
-   - Product URL
-   - Platform
-3. **Configure Tracking**: Set check interval and notification preferences
-4. **Get Notified**: Enable browser notifications to receive alerts when cars are restocked
-5. **Check Manually**: Click "Open Product" to verify availability on the marketplace
+| Platform | Method | Pincode Support |
+|----------|--------|-----------------|
+| Blinkit | HTML + GraphQL | ✅ Headers/cookies |
+| Zepto | HTML + REST API | ✅ City mapping |
+| FirstCry | HTML + REST API | ✅ Cookies |
+| Amazon | HTML scraping | ⚠️ Limited |
 
-## Architecture
+## Notifications
 
-```
-src/
-├── app/                 # Next.js App Router pages
-├── components/          # React components
-│   ├── product-card.tsx
-│   ├── product-grid.tsx
-│   ├── add-product.tsx
-│   ├── product-details.tsx
-│   ├── find-cars.tsx
-│   ├── dashboard-stats.tsx
-│   ├── status-badge.tsx
-│   ├── notification-settings.tsx
-│   └── settings-panel.tsx
-├── hooks/
-│   └── use-product-tracker.ts
-├── lib/
-│   ├── storage.ts       # LocalStorage persistence
-│   ├── notifications.ts # Web Notifications API
-│   ├── tracker.ts       # Tracking logic
-│   └── utils.ts         # Utility functions
-├── services/
-│   ├── index.ts         # Unified checker interface
-│   ├── blinkit.ts
-│   ├── zepto.ts
-│   ├── firstcry.ts
-│   └── amazon.ts
-└── types/
-    └── product.ts       # TypeScript types
-```
+- **Restock Alert** - Out of stock → In stock transition
+- **Price Threshold** - In stock AND price ≤ target price
+- **Periodic Summary** - Every check (configurable)
 
-## Future Backend Integration
+## Cost
 
-The codebase is designed for easy backend integration:
-
-- Clean `Product` and `ProductStatus` interfaces
-- Isolated marketplace checkers in `services/`
-- `Tracker` abstraction in `hooks/use-product-tracker.ts`
-- Notification service in `lib/notifications.ts`
-
-Future architecture:
-```
-Next.js Frontend → FastAPI/Node Backend → Marketplaces → Database → Notification Service → Email/Telegram/Discord/WhatsApp
-```
-
-## Tech Stack
-
-- **Next.js 14** (App Router)
-- **TypeScript**
-- **Tailwind CSS**
-- **shadcn/ui** inspired components
-- **Lucide React** icons
-- **LocalStorage** for persistence
+- **Frontend**: Free (Vercel hobby tier)
+- **Backend**: Free (GitHub Actions 2000 min/month)
+- **Vercel KV**: Free (100K reads/day)
+- **Telegram**: Free
 
 ## License
 
-MIT License - feel free to use and modify.
+MIT
